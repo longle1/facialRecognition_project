@@ -7,9 +7,52 @@ import pickle
 import I2C_LCD_driver
 import RPi.GPIO as GPIO
 from time import sleep
+import requests
+
 
 encodings = []
 names = []
+
+
+def check_password(username, password):
+    try:
+        url = "http://api-server-nt131.onrender.com/api/v1/users/check-password"  # Thay thế bằng URL thực tế
+        data = {
+            "username": username,
+            "password": password
+        }
+        response = requests.post(url, json=data)
+        response.raise_for_status()
+        
+        # Xử lý phản hồi từ API
+        result = response.json()
+        if result["status"]:
+            return True
+        else:
+            return False
+    
+    except requests.exceptions.RequestException as e:
+        return False
+
+
+def face_recognition(username):
+    try:
+        url = "http://api-server-nt131.onrender.com/api/v1/users/face-recognition"  # Thay thế bằng URL thực tế
+        data = {
+            "username": username
+        }
+        response = requests.post(url, json=data)
+        response.raise_for_status()
+        
+        # Xử lý phản hồi từ API
+        result = response.json()
+        if result["status"]:
+            return True
+        else:
+            return False
+
+    except requests.exceptions.RequestException as e:
+        return False
 
 # load all encoding files after train
 with open('train.pkl', 'rb') as f:
@@ -34,6 +77,7 @@ def facial_recognizer():
                 first_match_index = matches.index(True)
                 name=name_faces[first_match_index]
                 checkSuccessful()
+                face_recognition("user")
                 cam.release()
                 cv2.destroyAllWindows()
                 return
@@ -44,7 +88,6 @@ def facial_recognizer():
         if elapsed_time >= 10:  
             break
 
-    checkError()
     cam.release()
     cv2.destroyAllWindows()
     
@@ -52,32 +95,14 @@ def facial_recognizer():
 def checkSuccessful():
     if relayState:
         GPIO.output(Relay,GPIO.LOW)
-        GPIO.output(buzzer,GPIO.HIGH)
-        sleep(0.3)
-        GPIO.output(buzzer,GPIO.LOW)
         sleep(5) 
         relayState = False
         
     elif relayState == False:   # if state is blocking, transfering state to open 
         GPIO.output(Relay,GPIO.HIGH)
-        GPIO.output(buzzer,GPIO.HIGH)
-        sleep(0.3)
-        GPIO.output(buzzer,GPIO.LOW)
         sleep(5)
         relayState = True
 
-def checkError():
-    GPIO.output(buzzer,GPIO.HIGH)
-    sleep(0.3)
-    GPIO.output(buzzer,GPIO.LOW)
-    sleep(0.3)
-    GPIO.output(buzzer,GPIO.HIGH)
-    sleep(0.3)
-    GPIO.output(buzzer,GPIO.LOW)
-    sleep(0.3)
-    GPIO.output(buzzer,GPIO.HIGH)
-    sleep(0.3)
-    GPIO.output(buzzer,GPIO.LOW) 
 
 # Enter column pins
 C1 = 5
@@ -91,8 +116,6 @@ R2 = 16
 R3 = 20
 R4 = 21
 
-# Enter buzzer pin
-buzzer = 17
 
 # Enter LED pin
 Relay = 27
@@ -113,14 +136,12 @@ lcd.lcd_clear()
 # being held down or -1 if no key is pressed
 keypadPressed = -1
 
-# Enter your PIN
-secretCode = "1111"
+
 input = ""
 
 # Setup GPIO
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)  # helps refer to GPIO pins in numerical order
-GPIO.setup(buzzer,GPIO.OUT)
 GPIO.setup(Relay,GPIO.OUT)
 GPIO.output(Relay,GPIO.HIGH)
 
@@ -178,7 +199,7 @@ def commands():
 
     # Check PIN
     if (not pressed and GPIO.input(R2) == 1):
-        if input == secretCode:
+        if check_password("user", input):
             checkSuccessful()
             
         else:
